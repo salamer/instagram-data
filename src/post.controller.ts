@@ -1,7 +1,7 @@
 import {
   Body,
   Get,
-  Post as HttpPost,
+  Post,
   Route,
   Tags,
   Security,
@@ -14,7 +14,7 @@ import {
   SuccessResponse,
 } from 'tsoa';
 import { AppDataSource } from './models';
-import { Post, User } from './models';
+import { Posts, User } from './models';
 import { uploadBase64ToObjectStorage } from './objectstorage.service';
 import type { JwtPayload } from './utils';
 
@@ -38,7 +38,7 @@ export interface PostResponse {
 @Tags('Posts')
 export class PostController extends Controller {
   @Security('jwt')
-  @HttpPost('')
+  @Post('')
   @SuccessResponse(200, 'Post Created')
   public async createPost(
     @Request() req: Express.Request,
@@ -66,7 +66,7 @@ export class PostController extends Controller {
         body.imageFileType,
       );
 
-      const postRepo = AppDataSource.getRepository(Post);
+      const postRepo = AppDataSource.getRepository(Posts);
       const newPost = postRepo.create({
         userId: currentUser.userId,
         imageUrl: uploadResult.objectUrl,
@@ -97,7 +97,7 @@ export class PostController extends Controller {
     @Query() limit: number = 10,
     @Query() offset: number = 0,
   ): Promise<PostResponse[]> {
-    const posts = await AppDataSource.getRepository(Post).find({
+    const posts = await AppDataSource.getRepository(Posts).find({
       relations: ['user'],
       order: { createdAt: 'DESC' },
       take: limit,
@@ -129,7 +129,7 @@ export class PostController extends Controller {
     }
     const searchTerm = query.trim().split(/\s+/).join(' & ');
 
-    const posts = await AppDataSource.getRepository(Post)
+    const posts = await AppDataSource.getRepository(Posts)
       .createQueryBuilder('post')
       .leftJoinAndSelect('post.user', 'user')
       .where('to_tsvector(post.caption) @@ plainto_tsquery(:query)', {
@@ -156,7 +156,7 @@ export class PostController extends Controller {
     @Path() postId: number,
     @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
   ): Promise<PostResponse> {
-    const post = await AppDataSource.getRepository(Post).findOne({
+    const post = await AppDataSource.getRepository(Posts).findOne({
       where: { id: postId },
       relations: ['user'],
     });

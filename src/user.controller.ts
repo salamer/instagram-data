@@ -12,8 +12,9 @@ import {
   Get,
   SuccessResponse,
 } from 'tsoa';
-import { AppDataSource, User, Follow } from './models';
+import { AppDataSource, User, Follow, Posts as PostItem } from './models';
 import type { JwtPayload } from './utils';
+import { PostResponse } from './post.controller';
 
 interface UserProfileResponse {
   id: number;
@@ -118,5 +119,109 @@ export class UserController extends Controller {
       followers,
       following,
     };
+  }
+
+  @Get('{userId}/followers')
+  public async getUserFollowers(
+    @Path() userId: number,
+    @Res() notFound: TsoaResponse<404, { message: string }>,
+  ): Promise<UserProfileResponse[]> {
+    const followRepo = AppDataSource.getRepository(Follow);
+    const userRepo = AppDataSource.getRepository(User);
+
+    const followers = await followRepo.find({
+      where: { followedId: userId },
+      relations: ['follower'],
+    });
+
+    if (followers.length === 0) {
+      return notFound(404, { message: 'No followers found for this user.' });
+    }
+
+    // Add a check to avoid null/undefined `follower`
+    const followerProfiles = followers
+      .map((follow) => {
+        if (!follow.follower) {
+          console.error(
+            `Follower not found for follow entry with ID ${follow.id}`,
+          );
+          return null; // or handle the error appropriately
+        }
+
+        return {
+          id: follow.follower.id,
+          username: follow.follower.username,
+          bio: follow.follower.bio,
+          avatarUrl: follow.follower.avatarUrl,
+          createdAt: follow.follower.createdAt,
+          followers: 0, // Followers count not available in this context
+          following: 0, // Following count not available in this context
+        };
+      })
+      .filter((profile) => profile !== null); // Filter out any null entries
+
+    return followerProfiles;
+  }
+
+  @Get('{userId}/following')
+  public async getUserFollowing(
+    @Path() userId: number,
+    @Res() notFound: TsoaResponse<404, { message: string }>,
+  ): Promise<UserProfileResponse[]> {
+    const followRepo = AppDataSource.getRepository(Follow);
+    const userRepo = AppDataSource.getRepository(User);
+
+    const following = await followRepo.find({
+      where: { followerId: userId },
+      relations: ['followed'],
+    });
+
+    if (following.length === 0) {
+      return notFound(404, { message: 'No following found for this user.' });
+    }
+
+    return following
+      .filter((follow) => follow.followed !== null)
+      .map((follow) => ({
+        id: follow.followed.id,
+        username: follow.followed.username,
+        bio: follow.followed.bio,
+        avatarUrl: follow.followed.avatarUrl,
+        createdAt: follow.followed.createdAt,
+        followers: 0, // Followers count not available in this context
+        following: 0, // Following count not available in this context
+      }));
+  }
+
+  @Get('{userId}/likes')
+  public async getUserLikes(
+    @Path() userId: number,
+    @Res() notFound: TsoaResponse<404, { message: string }>,
+  ): Promise<PostResponse[]> {
+    const user = await AppDataSource.getRepository(User).findOneBy({
+      id: userId,
+    });
+    if (!user) {
+      return notFound(404, { message: 'User not found' });
+    }
+
+    const posts = await AppDataSource.getRepository(PostItem).find({
+      where: { userId },
+      relations: ['user'],
+    });
+
+    if (posts.length === 0) {
+      return notFound(404, { message: 'No liked posts found for this user.' });
+    }
+
+    return posts.map((post) => ({
+      id: post.id,
+      imageUrl: post.imageUrl,
+      caption: post.caption,
+      createdAt: post.createdAt,
+      userId: post.userId,
+      username: post.user?.username || 'unknown',
+      avatarUrl: post.user?.avatarUrl || null,
+    }));
   }
 }

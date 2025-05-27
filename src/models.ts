@@ -41,7 +41,7 @@ export class User extends BaseEntity {
 }
 
 @Entity({ schema, name: 'posts' })
-export class Post extends BaseEntity {
+export class Posts extends BaseEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -88,9 +88,9 @@ export class Comment extends BaseEntity {
   @Column({ name: 'user_id' })
   userId: number;
 
-  @ManyToOne(() => Post)
+  @ManyToOne(() => Posts)
   @JoinColumn({ name: 'post_id' })
-  post: Post;
+  post: Posts;
 
   @Column({ name: 'post_id' })
   postId: number;
@@ -115,9 +115,9 @@ export class Like extends BaseEntity {
   @Column({ name: 'user_id' })
   userId: number;
 
-  @ManyToOne(() => Post)
+  @ManyToOne(() => Posts)
   @JoinColumn({ name: 'post_id' })
-  post: Post;
+  post: Posts;
 
   @Column({ name: 'post_id' })
   postId: number;
@@ -153,7 +153,7 @@ export const AppDataSource = new DataSource({
   url: config.DATABASE_URL,
   synchronize: false,
   logging: true,
-  entities: [User, Post, Comment, Like, Follow],
+  entities: [User, Posts, Comment, Like, Follow],
 
   subscribers: [],
   migrations: [],
