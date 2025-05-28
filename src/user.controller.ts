@@ -12,7 +12,7 @@ import {
   Get,
   SuccessResponse,
 } from 'tsoa';
-import { AppDataSource, User, Follow, Posts as PostItem } from './models';
+import { AppDataSource, User, Follow, Posts as PostItem, Like } from './models';
 import type { JwtPayload } from './utils';
 import { PostResponse } from './post.controller';
 import { In } from 'typeorm';
@@ -211,9 +211,9 @@ export class UserController extends Controller {
       }));
   }
 
-  @Get('{userId}/likes')
+  @Get('{userId}/posts')
   @Security('jwt', ['optional'])
-  public async getUserLikes(
+  public async getUserPosts(
     @Request() req: Express.Request,
     @Path() userId: number,
     @Res() notFound: TsoaResponse<404, { message: string }>,
@@ -233,11 +233,11 @@ export class UserController extends Controller {
     const currentUser = req.user as JwtPayload;
     const likes =
       currentUser && currentUser.userId
-        ? await AppDataSource.getRepository(PostItem).find({
+        ? await AppDataSource.getRepository(Like).find({
             where: [
               {
                 userId: currentUser.userId,
-                id: In(posts.map((p) => p.id)),
+                postId: In(posts.map((post) => post.id)),
               },
             ],
           })
@@ -253,5 +253,51 @@ export class UserController extends Controller {
       avatarUrl: post.user?.avatarUrl || null,
       hasLiked: likes.some((like) => like.id === post.id),
     }));
+  }
+
+  @Get('{userId}/likes')
+  @Security('jwt', ['optional'])
+  public async getUserLikes(
+    @Request() req: Express.Request,
+    @Path() userId: number,
+    @Res() notFound: TsoaResponse<404, { message: string }>,
+  ): Promise<PostResponse[]> {
+    const user = await AppDataSource.getRepository(User).findOneBy({
+      id: userId,
+    });
+    if (!user) {
+      return notFound(404, { message: 'User not found' });
+    }
+
+    const posts = await AppDataSource.getRepository(Like).find({
+      where: { userId },
+      relations: ['user', 'post'],
+    });
+
+    const currentUser = req.user as JwtPayload;
+    const likes =
+      currentUser && currentUser.userId
+        ? await AppDataSource.getRepository(Like).find({
+            where: [
+              {
+                userId: currentUser.userId,
+                postId: In(posts.map((p) => p.id)),
+              },
+            ],
+          })
+        : [];
+
+    return posts
+      .filter((post) => post.user !== null && post.post !== null)
+      .map((post) => ({
+        id: post.id,
+        imageUrl: post.post.imageUrl,
+        caption: post.post.caption,
+        createdAt: post.createdAt,
+        userId: post.userId,
+        username: post.user?.username || 'unknown',
+        avatarUrl: post.user?.avatarUrl || null,
+        hasLiked: likes.some((like) => like.id === post.id),
+      }));
   }
 }
