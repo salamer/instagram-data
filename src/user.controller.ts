@@ -15,6 +15,7 @@ import {
 import { AppDataSource, User, Follow, Posts as PostItem } from './models';
 import type { JwtPayload } from './utils';
 import { PostResponse } from './post.controller';
+import { In } from 'typeorm';
 
 interface UserProfileResponse {
   id: number;
@@ -194,7 +195,9 @@ export class UserController extends Controller {
   }
 
   @Get('{userId}/likes')
+  @Security('jwt', ['optional'])
   public async getUserLikes(
+    @Request() req: Express.Request,
     @Path() userId: number,
     @Res() notFound: TsoaResponse<404, { message: string }>,
   ): Promise<PostResponse[]> {
@@ -210,9 +213,18 @@ export class UserController extends Controller {
       relations: ['user'],
     });
 
-    if (posts.length === 0) {
-      return notFound(404, { message: 'No liked posts found for this user.' });
-    }
+    const currentUser = req.user as JwtPayload;
+    const likes =
+      currentUser && currentUser.userId
+        ? await AppDataSource.getRepository(PostItem).find({
+            where: [
+              {
+                userId: currentUser.userId,
+                id: In(posts.map((p) => p.id)),
+              },
+            ],
+          })
+        : [];
 
     return posts.map((post) => ({
       id: post.id,
@@ -222,6 +234,7 @@ export class UserController extends Controller {
       userId: post.userId,
       username: post.user?.username || 'unknown',
       avatarUrl: post.user?.avatarUrl || null,
+      hasLiked: likes.some((like) => like.id === post.id),
     }));
   }
 }

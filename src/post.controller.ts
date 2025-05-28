@@ -14,9 +14,10 @@ import {
   SuccessResponse,
 } from 'tsoa';
 import { AppDataSource } from './models';
-import { Posts, User } from './models';
+import { Posts, User, Like } from './models';
 import { uploadBase64ToObjectStorage } from './objectstorage.service';
 import type { JwtPayload } from './utils';
+import { In } from 'typeorm';
 
 export interface CreatePostBase64Input {
   imageBase64: string;
@@ -32,6 +33,7 @@ export interface PostResponse {
   userId: number;
   username: string;
   avatarUrl: string | null;
+  hasLiked: boolean;
 }
 
 @Route('posts')
@@ -83,6 +85,7 @@ export class PostController extends Controller {
         ...savedPost,
         username: user?.username || 'unknown',
         avatarUrl: user?.avatarUrl || null,
+        hasLiked: false, // Default to false, likes can be fetched separately
       };
     } catch (error: any) {
       console.error('Post creation failed:', error);
@@ -93,7 +96,9 @@ export class PostController extends Controller {
   }
 
   @Get('')
+  @Security('jwt', ['optional'])
   public async getFeedPosts(
+    @Request() req: Express.Request,
     @Query() limit: number = 10,
     @Query() offset: number = 0,
   ): Promise<PostResponse[]> {
@@ -104,6 +109,19 @@ export class PostController extends Controller {
       skip: offset,
     });
 
+    const currentUser = req.user as JwtPayload;
+    const likes =
+      currentUser && currentUser.userId
+        ? await AppDataSource.getRepository(Like).find({
+            where: [
+              {
+                userId: currentUser.userId,
+                postId: In(posts.map((p) => p.id)),
+              },
+            ],
+          })
+        : [];
+
     return posts.map((post) => ({
       id: post.id,
       imageUrl: post.imageUrl,
@@ -112,11 +130,14 @@ export class PostController extends Controller {
       userId: post.userId,
       username: post.user?.username || 'unknown',
       avatarUrl: post.user?.avatarUrl || null,
+      hasLiked: likes.some((like) => like.id === post.id),
     }));
   }
 
   @Get('search')
+  @Security('jwt', ['optional'])
   public async searchPosts(
+    @Request() req: Express.Request,
     @Query() query: string,
     @Query() limit: number = 10,
     @Query() offset: number = 0,
@@ -140,6 +161,19 @@ export class PostController extends Controller {
       .skip(offset)
       .getMany();
 
+    const currentUser = req.user as JwtPayload;
+    const likes =
+      currentUser && currentUser.userId
+        ? await AppDataSource.getRepository(Like).find({
+            where: [
+              {
+                userId: currentUser.userId,
+                postId: In(posts.map((p) => p.id)),
+              },
+            ],
+          })
+        : [];
+
     return posts.map((post) => ({
       id: post.id,
       imageUrl: post.imageUrl,
@@ -148,11 +182,14 @@ export class PostController extends Controller {
       userId: post.userId,
       username: post.user?.username || 'unknown',
       avatarUrl: post.user?.avatarUrl || null,
+      hasLiked: likes.some((like) => like.id === post.id),
     }));
   }
 
   @Get('{postId}')
+  @Security('jwt', ['optional'])
   public async getPostById(
+    @Request() req: Express.Request,
     @Path() postId: number,
     @Res() notFoundResponse: TsoaResponse<404, { message: string }>,
   ): Promise<PostResponse> {
@@ -165,6 +202,19 @@ export class PostController extends Controller {
       return notFoundResponse(404, { message: 'Post not found' });
     }
 
+    const currentUser = req.user as JwtPayload;
+    const likes =
+      currentUser && currentUser.userId
+        ? await AppDataSource.getRepository(Like).find({
+            where: [
+              {
+                userId: currentUser.userId,
+                postId: postId,
+              },
+            ],
+          })
+        : [];
+
     return {
       id: post.id,
       imageUrl: post.imageUrl,
@@ -173,6 +223,7 @@ export class PostController extends Controller {
       userId: post.userId,
       username: post.user?.username || 'unknown',
       avatarUrl: post.user?.avatarUrl || null,
+      hasLiked: likes.some((like) => like.id === post.id),
     };
   }
 }

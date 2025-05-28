@@ -21,8 +21,18 @@ export async function expressAuthentication(
   }
 
   const authHeader = request.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
+  if (
+    !authHeader?.startsWith('Bearer ') &&
+    !_scopes?.find((scope) => scope === 'optional')
+  ) {
     throw new Error('Unauthorized: Missing or malformed token');
+  }
+
+  if (!authHeader) {
+    return {
+      userId: 0,
+      username: '',
+    };
   }
 
   const token = authHeader.split(' ')[1];
