@@ -25,6 +25,7 @@ interface UserProfileResponse {
   createdAt: Date;
   followers: number;
   following: number;
+  hasFollowed: boolean;
 }
 
 @Route('users')
@@ -95,8 +96,10 @@ export class UserController extends Controller {
     return { message: `Successfully unfollowed user ${userIdToUnfollow}` };
   }
 
+  @Security('jwt', ['optional'])
   @Get('{userId}/profile')
   public async getUserProfile(
+    @Request() req: Express.Request,
     @Path() userId: number,
     @Res() notFound: TsoaResponse<404, { message: string }>,
   ): Promise<UserProfileResponse> {
@@ -111,6 +114,17 @@ export class UserController extends Controller {
     const followers = await followRepo.count({ where: { followedId: userId } });
     const following = await followRepo.count({ where: { followerId: userId } });
 
+    const currentUser = req.user as JwtPayload;
+    const hasFollowed =
+      currentUser && currentUser.userId
+        ? await followRepo.findOne({
+            where: {
+              followerId: currentUser.userId,
+              followedId: userId,
+            },
+          })
+        : null;
+
     return {
       id: user.id,
       username: user.username,
@@ -119,6 +133,7 @@ export class UserController extends Controller {
       createdAt: user.createdAt,
       followers,
       following,
+      hasFollowed: hasFollowed ? true : false,
     };
   }
 
@@ -157,6 +172,7 @@ export class UserController extends Controller {
           createdAt: follow.follower.createdAt,
           followers: 0, // Followers count not available in this context
           following: 0, // Following count not available in this context
+          hasFollowed: false, // Follow status not available in this context
         };
       })
       .filter((profile) => profile !== null); // Filter out any null entries
@@ -191,6 +207,7 @@ export class UserController extends Controller {
         createdAt: follow.followed.createdAt,
         followers: 0, // Followers count not available in this context
         following: 0, // Following count not available in this context
+        hasFollowed: false, // Follow status not available in this context
       }));
   }
 
