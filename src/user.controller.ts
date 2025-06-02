@@ -187,7 +187,6 @@ export class UserController extends Controller {
   @Get('{userId}/following')
   public async getUserFollowing(
     @Path() userId: number,
-    @Res() notFound: TsoaResponse<404, { message: string }>,
   ): Promise<UserProfileResponse[]> {
     const followRepo = AppDataSource.getRepository(Follow);
     const userRepo = AppDataSource.getRepository(User);
@@ -198,7 +197,7 @@ export class UserController extends Controller {
     });
 
     if (following.length === 0) {
-      return notFound(404, { message: 'No following found for this user.' });
+      return [];
     }
 
     return following
@@ -220,13 +219,12 @@ export class UserController extends Controller {
   public async getUserPosts(
     @Request() req: Express.Request,
     @Path() userId: number,
-    @Res() notFound: TsoaResponse<404, { message: string }>,
   ): Promise<PostResponse[]> {
     const user = await AppDataSource.getRepository(User).findOneBy({
       id: userId,
     });
     if (!user) {
-      return notFound(404, { message: 'User not found' });
+      return []; // or throw an error if preferred
     }
 
     const posts = await AppDataSource.getRepository(PostItem).find({
@@ -265,7 +263,6 @@ export class UserController extends Controller {
   public async getUserLikes(
     @Request() req: Express.Request,
     @Path() userId: number,
-    @Res() notFound: TsoaResponse<404, { message: string }>,
   ): Promise<PostResponse[]> {
     const user = await AppDataSource.getRepository(User).findOneBy({
       id: userId,
