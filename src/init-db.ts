@@ -61,7 +61,7 @@ export async function initializeDatabase() {
     const postIns = AppDataSource.getRepository(Posts).create({
       userId: config.ADMIN_USER_ID, // Use the admin user for initial data
       imageUrl: uploadResult.objectUrl,
-      caption: insData[i] || '',
+      caption: insData || '',
       createdAt: new Date(),
     });
     await AppDataSource.getRepository(Posts).save(postIns);
