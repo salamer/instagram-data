@@ -3,6 +3,10 @@
 import config from './config';
 import { AppDataSource, schema, Posts, User } from './models';
 import { hashPassword } from './utils';
+import initdata from './instagram-init-data/data.json';
+import fs from 'fs';
+import { uploadBase64ToObjectStorage } from './objectstorage.service';
+import path from 'path';
 
 export async function initializeDatabase() {
   console.log('Initializing database...');
@@ -42,7 +46,28 @@ export async function initializeDatabase() {
     id: config.GUEST_USER_ID, // Set a fixed ID for the guest user
   });
   await repo.save(guestUser);
+
+  // init data
+  for (var i = 0; i < initdata.length; i++) {
+    const insData = initdata[i];
+    const image = fs.readFileSync(
+      path.join(__dirname, 'instagram-init-data', `${i}.jpg`),
+    );
+    const imageBase64 = image.toString('base64');
+    const uploadResult = await uploadBase64ToObjectStorage(
+      imageBase64,
+      'image/jpeg',
+    );
+    const postIns = AppDataSource.getRepository(Posts).create({
+      userId: config.ADMIN_USER_ID, // Use the admin user for initial data
+      imageUrl: uploadResult.objectUrl,
+      caption: insData[i] || '',
+      createdAt: new Date(),
+    });
+    await AppDataSource.getRepository(Posts).save(postIns);
+  }
 }
+
 // This function will be called when the script is run
 initializeDatabase()
   .then(() => {
